@@ -1,11 +1,8 @@
-﻿using MireaChatBot.ScheduleParsers;
-using Newtonsoft.Json;
+﻿using MireaChatBot.Misc;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.BotAPI;
@@ -19,6 +16,7 @@ namespace MireaChatBot.Bot
     public class TelegramClient : IBotClient
     {
         public event EventHandler<Message> MessageReceived;
+        public event EventHandler<IChatClient> ChatClientCreated;
 
         private BotClient _client;
         private List<string> _chatIds;
@@ -36,11 +34,12 @@ namespace MireaChatBot.Bot
         public IChatClient GetChat(string chatId)
         {
             TelegramChatClient client = _chatClients.Where(chatClient => chatClient.ChatId == chatId).FirstOrDefault();
-            if(client is null)
+            if (client is null)
             {
                 client = new TelegramChatClient(chatId, _client);
                 _chatIds.Add(chatId);
                 _chatClients.Add(client);
+                ChatClientCreated?.Invoke(this, client);
             }
             return client;
         }
@@ -69,12 +68,12 @@ namespace MireaChatBot.Bot
 
         private void updateListenerTick()
         {
-            while(!_threadControl.Token.IsCancellationRequested)
+            while (!_threadControl.Token.IsCancellationRequested)
             {
                 Update[] updates = _client.GetUpdates(_lastHandledUpdateId + 1);
-                foreach(var update in updates)
+                foreach (var update in updates)
                 {
-                    if(update.Message != null && update.Message.From.Id != _client.GetMe().Id)
+                    if (!(update.Message is null) && update.Message.From.Id != _client.GetMe().Id)
                     {
                         var clientToNotify = GetChat(update.Message.Chat.Id.ToString());
                         Task.Run(() =>
@@ -88,7 +87,7 @@ namespace MireaChatBot.Bot
                             clientToNotify.OnMessageReceived(message);
                         });
                     }
-                    if(update.EditedMessage != null && update.Message.From.Id != _client.GetMe().Id)
+                    if (!(update.EditedMessage is null) && update.EditedMessage.From.Id != _client.GetMe().Id)
                     {
                         var clientToNotify = GetChat(update.EditedMessage.Chat.Id.ToString());
                         Task.Run(() =>
@@ -97,7 +96,7 @@ namespace MireaChatBot.Bot
                             clientToNotify.OnMessageReceived(message);
                         });
                     }
-                    if(update.PollAnswer != null)
+                    if (!(update.PollAnswer is null))
                     {
                         var pollAnswer = TelegramPollAnswerConverter.ConvertFromTG(update.PollAnswer);
                         foreach (var chatClient in _chatClients)
@@ -150,13 +149,16 @@ namespace MireaChatBot.Bot
 
         public Message SendMessage(SendMessageArgs args)
         {
-            var tgMessage = _client.SendMessage(_chatId, args.MessageText);
+            var tgArgs = new Telegram.BotAPI.AvailableMethods.SendMessageArgs(_chatId, args.MessageText);
+            tgArgs.ReplyMarkup = TelegramReplyMarkupCreator.CreateCustomReplyMarkup(args.CustomReplyMarkup);
+            var tgMessage = _client.SendMessage(tgArgs);
             var message = TelegramMessageConverter.ConvertFromTG(tgMessage);
             return message;
         }
 
         public Message SendMessage(SendFileArgs args)
         {
+            if (args.File == "") SendMessage(args as SendMessageArgs);
             byte[] buffer = System.IO.File.ReadAllBytes(args.File);
             string fileName = Path.GetFileName(args.File);
             var tgArgs = new SendDocumentArgs(_chatId, new InputFile(buffer, fileName));
@@ -167,12 +169,22 @@ namespace MireaChatBot.Bot
         }
         public bool DeleteMessage(DeleteMessageArgs args)
         {
-            return _client.DeleteMessage(_chatId, Convert.ToInt32(args.MessageId));
+            try
+            {
+                return _client.DeleteMessage(_chatId, Convert.ToInt32(args.MessageId));
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public Message SendPoll(SendPollArgs args)
         {
-            var tgMessage = _client.SendPoll(new Telegram.BotAPI.AvailableMethods.SendPollArgs(_chatId, args.Title, args.Options));
+            var tgArgs = new Telegram.BotAPI.AvailableMethods.SendPollArgs(_chatId, args.Title, args.Options);
+            tgArgs.IsAnonymous = args.IsAnonymous;
+            tgArgs.AllowsMultipleAnswers = args.MultipleChoiceAvailable;
+            var tgMessage = _client.SendPoll(tgArgs);
             var message = TelegramMessageConverter.ConvertFromTG(tgMessage);
             return message;
         }
@@ -196,6 +208,11 @@ namespace MireaChatBot.Bot
         {
             var tgPoll = _client.StopPoll(Convert.ToInt64(_chatId), Convert.ToInt32(args.MessageId));
             return !(tgPoll is null);
+        }
+
+        public IEnumerable<Member> GetAllMembers()
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -239,7 +256,7 @@ namespace MireaChatBot.Bot
 
         private static void createDirIfNotExistes()
         {
-            if(!Directory.Exists(_downloadPath))
+            if (!Directory.Exists(_downloadPath))
             {
                 Directory.CreateDirectory(_downloadPath);
             }
@@ -251,7 +268,7 @@ namespace MireaChatBot.Bot
         public static Message ConvertFromTG(Telegram.BotAPI.AvailableTypes.Message message)
         {
             if (message is null) return null;
-            var message_ = new Message(message.MessageId.ToString(), message.Text,
+            var message_ = new Message(message.MessageId.ToString(), message.Text ?? "",
                 TelegramChatConverter.ConvertFromTG(message.Chat), TelegramUserConverter.ConvertFromTG(message.From),
                 TelegramPollConverter.ConvertFromTG(message.Poll), TelegramMessageConverter.ConvertFromTG(message.ReplyToMessage),
                 TelegramDocumentConverter.ConvertFromTG(message.Document));
@@ -278,7 +295,7 @@ namespace MireaChatBot.Bot
     {
         public static User ConvertFromTG(Telegram.BotAPI.AvailableTypes.User user)
         {
-            if(user is null) return null;
+            if (user is null) return null;
             var user_ = new User(user.Id.ToString(), user.Username);
             return user_;
         }
@@ -322,6 +339,36 @@ namespace MireaChatBot.Bot
             if (member is null) return null;
             var member_ = new MemberAdmin(TelegramUserConverter.ConvertFromTG(member.User), member.CustomTitle);
             return member_;
+        }
+    }
+    public static class TelegramMemberConverter
+    {
+        public static Member ConvertFromTG(Telegram.BotAPI.AvailableTypes.ChatMember member)
+        {
+            if (member is null) return null;
+            var member_ = new Member(TelegramUserConverter.ConvertFromTG(member.User));
+            return member_;
+        }
+    }
+
+    public static class TelegramReplyMarkupCreator
+    {
+        public static Telegram.BotAPI.AvailableTypes.ReplyMarkup CreateCustomReplyMarkup(ReplyMarkup markup)
+        {
+            if (markup is null || markup == ReplyMarkup.NoMarkup) return new ReplyKeyboardRemove();
+            ReplyKeyboardMarkup tgMarkup = new ReplyKeyboardMarkup();
+            List<List<KeyboardButton>> tgButtons = new List<List<KeyboardButton>>();
+            foreach(var buttonCollection in markup.Buttons)
+            {
+                tgButtons.Add(new List<KeyboardButton>());
+                foreach(var button in buttonCollection)
+                {
+                    KeyboardButton tgButton = new KeyboardButton(button);
+                    tgButtons.Last().Add(tgButton);
+                }
+            }
+            tgMarkup.Keyboard = tgButtons;
+            return tgMarkup;
         }
     }
 }

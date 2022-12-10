@@ -1,7 +1,5 @@
-﻿using DocumentFormat.OpenXml.Office.CustomUI;
+﻿using MireaChatBot.Misc;
 using OfficeOpenXml;
-using OfficeOpenXml.ConditionalFormatting;
-using OfficeOpenXml.Drawing.Chart;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -201,11 +199,11 @@ namespace MireaChatBot.ScheduleParsers
                     {
                         List<int> activeWeeks = weekSymbolIndex % 2 == 0 ? MireaDateHelper.GetAllEvenWeekNumbers().ToList() : MireaDateHelper.GetAllOddWeekNumbers().ToList();
                         var extractedLesson = _lessonFactory.Create(singleInfo.SubjectText, singleInfo.AuditoryText, generateDateTime(timeText), defineLessonType(singleInfo.LessonTypeText));
-                        if(!(singleInfo.ExcludedWeekNumbers is null))
+                        if (!(singleInfo.ExcludedWeekNumbers is null))
                         {
                             activeWeeks = activeWeeks.Where(weekNumber => !singleInfo.ExcludedWeekNumbers.Contains(weekNumber)).ToList();
                         }
-                        else if(!(singleInfo.IncludedWeekNumbers is null))
+                        else if (!(singleInfo.IncludedWeekNumbers is null))
                         {
                             activeWeeks = singleInfo.IncludedWeekNumbers.ToList();
                         }
@@ -303,7 +301,7 @@ namespace MireaChatBot.ScheduleParsers
             List<string> disciplineCellTextPreprocessParts = new List<string>();
             for (int i = 0; i < parts.Length; i++)
             {
-                if (i < parts.Length - 1 && !checkDefinedSubgroupNumbers(parts[i]) && checkDefinedSubgroupNumbers(parts[i + 1]) && !checkDefinedWeekNumbers(parts[i+1]))
+                if (i < parts.Length - 1 && !checkDefinedSubgroupNumbers(parts[i]) && checkDefinedSubgroupNumbers(parts[i + 1]) && !checkDefinedWeekNumbers(parts[i + 1]))
                 {
                     disciplineCellTextPreprocessParts.Add(parts[i] + " " + parts[i + 1]);
                     i++;
@@ -330,7 +328,7 @@ namespace MireaChatBot.ScheduleParsers
         private bool checkCellText(string disciplineCellText)
         {
             if (string.IsNullOrEmpty(disciplineCellText)) return false;
-            foreach(var pattern in _restrictedPatterns)
+            foreach (var pattern in _restrictedPatterns)
             {
                 Regex regex = new Regex(pattern);
                 if (regex.IsMatch(disciplineCellText)) return false;
@@ -344,7 +342,7 @@ namespace MireaChatBot.ScheduleParsers
             List<int> includedWeekNumbers = null;
             string subjectName;
             Match excludedWeeksMatch = new Regex(excludedWeeksPattern).Match(cellTextPartArray[0]);
-            if(excludedWeeksMatch.Success)
+            if (excludedWeeksMatch.Success)
             {
                 excludedWeekNumbers = defineNumbers(preprocessWeekNumbersExpression(excludedWeeksMatch.Groups["weekNumbers"].Value));
                 subjectName = excludedWeeksMatch.Groups["subjectName"].Value;
@@ -360,7 +358,7 @@ namespace MireaChatBot.ScheduleParsers
                 else
                 {
                     Match onlySubjectNameMatch = new Regex(onlySubjectNamePattern).Match(cellTextPartArray[0]);
-                    if(onlySubjectNameMatch.Success)
+                    if (onlySubjectNameMatch.Success)
                     {
                         subjectName = onlySubjectNameMatch.Groups["subjectName"].Value;
                     }
@@ -413,7 +411,7 @@ namespace MireaChatBot.ScheduleParsers
             return result;
         }
 
-        
+
 
     }
 
@@ -534,54 +532,6 @@ namespace MireaChatBot.ScheduleParsers
                 numbers.Add(i + 1);
             }
             return numbers;
-        }
-    }
-
-    internal static class HTTPClient
-    {
-        public static string GetString(string url)
-        {
-            var response = sendRequest(url);
-            if (!checkStatusCode(response.StatusCode)) return null;
-            var result = response.Content.ReadAsStringAsync().Result;
-            return result;
-        }
-
-        public static byte[] GetBytes(string url)
-        {
-            var response = sendRequest(url);
-            if (!checkStatusCode(response.StatusCode)) return null;
-            var result = response.Content.ReadAsByteArrayAsync().Result;
-            return result;
-        }
-
-        private static HttpResponseMessage sendRequest(string url)
-        {
-            var client = new HttpClient();
-            var response = client.SendAsync(new HttpRequestMessage(HttpMethod.Get, url)).Result;
-            return response;
-        }
-
-        private static bool checkStatusCode(HttpStatusCode code)
-        {
-            return code == HttpStatusCode.OK;
-        }
-    }
-
-    internal static class HTMLHelper
-    {
-        public static string[] GetAllAttributeValues(string html, string attributeName)
-        {
-            List<string> allValues = new List<string>();
-            string regularExp = $"{attributeName}=\"(?<rawAttribute>.*)\"";
-            var matches = Regex.Matches(html, regularExp);
-            foreach (Match match in matches)
-            {
-                string value = match.Groups["rawAttribute"].Value;
-                string url = value.Split('"')[0];
-                allValues.Add(url);
-            }
-            return allValues.ToArray();
         }
     }
 }

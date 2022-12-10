@@ -4,7 +4,7 @@ using MireaChatBot.ScheduleRepositories;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MireaChatBot.ScheduleCreator
+namespace MireaChatBot.ScheduleAccessors
 {
     public class ParserAccessor : GroupScheduleAccessor
     {

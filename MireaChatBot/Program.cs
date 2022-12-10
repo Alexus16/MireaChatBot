@@ -1,46 +1,46 @@
-﻿using DocumentFormat.OpenXml.Drawing.Charts;
-using MireaChatBot.Bot;
+﻿using MireaChatBot.Bot;
+using MireaChatBot.BotHandlers;
+using MireaChatBot.ChatHandlers;
+using MireaChatBot.DataContainers;
+using MireaChatBot.GroupContainers;
 using MireaChatBot.ScheduleAccessors;
-using MireaChatBot.ScheduleCreator;
 using MireaChatBot.ScheduleParsers;
-using MireaChatBot.ScheduleSender;
+using Newtonsoft.Json;
 using OfficeOpenXml;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using Telegram.BotAPI;
-using Telegram.BotAPI.AvailableMethods;
 
 namespace MireaChatBot
 {
     internal class Program
     {
-        static ChatVisitorDataCollector collector;
         static void Main(string[] args)
         {
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-            MireaScheduleParser parser = new MireaScheduleParser();
-            GroupScheduleAccessor accessor = new CacheAccessorWithoutDB(parser);
-            TelegramClient client = new TelegramClient(new TelegramBotData("5968371284:AAFu0yn8wLlAUHHM9rl0Ou5uFYVB6-L2NMI", null, 0));
-            collector = new ChatVisitorDataCollector(client);
-            client.MessageReceived += testConsoleOutput;
-            client.StartWork();
-            while(Console.ReadLine() != "")
+            TelegramClient client = new TelegramClient(new TelegramBotData("5812220985:AAElv8E4dK20242r3oF1Kssvsc500b_9hv4", null, 0));
+            GroupContainerBuilder builder = new GroupContainerBuilder(client);
+            KeyTimeDataContainer timeContainer = new KeyTimeDataContainer();
+            timeContainer.AddKeyTime("poll-send", DateTime.Parse("19:00"));
+            //  Containers
+            var customUserContainer = new CustomUserDataContainer();
+            var accessor = new CacheAccessorWithoutDB(new MireaScheduleParser());
+            var scheduleContainer = new ScheduleDataContainer(accessor);
+            var parser = new MireaScheduleParser();
+            builder.AddDataContainer(customUserContainer);
+            builder.AddDataContainer(scheduleContainer);
+            builder.AddDataContainer(timeContainer);
+            //  Handlers
+            builder.AddHandler<MireaGroupRegistratorHandler>();
+            //  Handler factories
+            builder.AddHandlerFactory<PollVisitHandlerFactory>();
+            builder.AddHandlerFactory<AttachmentHandlerFactory>();
+            accessor.Update();
+            builder.Client.StartWork();
+            while (Console.ReadLine() != null)
             {
-                Console.WriteLine("-----------------------------");
+                var settinds = new JsonSerializerSettings();
+                settinds.MaxDepth = 15;
+                Console.WriteLine(JsonConvert.SerializeObject(accessor.GetAllSchedules(), settinds));
             }
-            collector.Dispose();
-            client.StopWork();
-        }
-
-        private static void testConsoleOutput(object sender, Message e)
-        {
-            var visitor = collector.GetVisitorById(e.From.Id);
-            Console.WriteLine("Your fullname is " + visitor.FullName);
         }
     }
 }

@@ -26,6 +26,7 @@ namespace MireaChatBot
         Guid _activityId;
         public Lesson(string name, Employee teacher, DateTime startTime, TimeSpan duration, LessonType lessonType, string auditory)
         {
+            _activityId = new Guid();
             _name = name;
             _teacher = teacher;
             _startTime = startTime;

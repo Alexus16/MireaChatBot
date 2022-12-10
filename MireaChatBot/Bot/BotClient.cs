@@ -1,12 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Telegram.BotAPI.AvailableTypes;
 using Telegram.BotAPI.UpdatingMessages;
 
 public interface IBotClient
 {
     event EventHandler<Message> MessageReceived;
+    event EventHandler<IChatClient> ChatClientCreated;
     IEnumerable<string> GetChatIds();
     IEnumerable<IChatClient> GetChats();
     IChatClient GetChat(string chatId);
@@ -21,6 +23,7 @@ public interface IChatClient
     event EventHandler<Message> MessageEdited;
     event EventHandler<PollAnswer> PollAnswerReceived;
     IEnumerable<MemberAdmin> GetAllAdmins();
+    IEnumerable<Member> GetAllMembers();
     Message SendMessage(SendMessageArgs args);
     Message SendMessage(SendFileArgs args);
     bool PinMessage(PinMessageArgs args);
@@ -95,21 +98,34 @@ public class MemberAdmin
     public string CustomTitle { get; }
 }
 
+public class Member
+{
+    public Member(User user)
+    {
+        User = user;
+    }
+    public User User { get; }
+}
+
 public abstract class SendArgs { }
 
 public class SendMessageArgs : SendArgs
 {
-    public SendMessageArgs(string messageText)
+    public SendMessageArgs(string messageText) : this(messageText, ReplyMarkup.NoMarkup) { }
+    public SendMessageArgs(string messageText, ReplyMarkup customReplyMarkup)
     {
         MessageText = messageText;
+        CustomReplyMarkup = customReplyMarkup;
     }
 
     public string MessageText { get; }
+    public ReplyMarkup CustomReplyMarkup { get; }
 }
 
 public class SendFileArgs : SendMessageArgs
 {
-    public SendFileArgs(string text, string file) : base(text)
+    public SendFileArgs(string text, string file) : this(text, file, ReplyMarkup.NoMarkup) { }
+    public SendFileArgs(string text, string file, ReplyMarkup customReplyMarkup) : base(text, customReplyMarkup)
     {
         File = file;
     }
@@ -195,6 +211,31 @@ public class Poll
     public IEnumerable<string> Options { get; }
     public bool IsAnonymous { get; }
     public bool MultipleChoiceAvailable { get; }
+}
+
+public class ReplyMarkup
+{
+    public IEnumerable<IEnumerable<string>> Buttons { get; }
+    private ReplyMarkup(IEnumerable<IEnumerable<string>> buttons)
+    {
+        Buttons = buttons;
+    }
+
+    private static ReplyMarkup _noMarkup;
+    public static ReplyMarkup NoMarkup => (_noMarkup ?? (_noMarkup = new ReplyMarkup(null)));
+
+    public static ReplyMarkup Create(IEnumerable<string> buttonTexts)
+    {
+        List<List<string>> buttons = new List<List<string>>();
+        int it = 0;
+        foreach(var buttonText in buttonTexts)
+        {
+            if (it++ % 3 == 0) buttons.Add(new List<string>());
+            buttons.Last().Add(buttonText);
+        }
+        var markup = new ReplyMarkup(buttons);
+        return markup;
+    }
 }
 
 public class Document
