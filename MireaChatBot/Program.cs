@@ -16,10 +16,10 @@ namespace MireaChatBot
         static void Main(string[] args)
         {
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-            TelegramClient client = new TelegramClient(new TelegramBotData("5812220985:AAElv8E4dK20242r3oF1Kssvsc500b_9hv4", null, 0));
+            TelegramClient client = new TelegramClient(new TelegramBotData("", null, 0));
             GroupContainerBuilder builder = new GroupContainerBuilder(client);
-            KeyTimeDataContainer timeContainer = new KeyTimeDataContainer();
-            timeContainer.AddKeyTime("poll-send", DateTime.Parse("19:00"));
+            KeyTimeDataContainer keyTimeContainer = new KeyTimeDataContainer();
+            keyTimeContainer.AddKeyTime("poll-send", DateTime.Parse("19:00"));
             //  Containers
             var customUserContainer = new CustomUserDataContainer();
             var accessor = new CacheAccessorWithoutDB(new MireaScheduleParser());
@@ -27,7 +27,7 @@ namespace MireaChatBot
             var parser = new MireaScheduleParser();
             builder.AddDataContainer(customUserContainer);
             builder.AddDataContainer(scheduleContainer);
-            builder.AddDataContainer(timeContainer);
+            builder.AddDataContainer(keyTimeContainer);
             //  Handlers
             builder.AddHandler<MireaGroupRegistratorHandler>();
             //  Handler factories
@@ -39,7 +39,6 @@ namespace MireaChatBot
             {
                 var settinds = new JsonSerializerSettings();
                 settinds.MaxDepth = 15;
-                Console.WriteLine(JsonConvert.SerializeObject(accessor.GetAllSchedules(), settinds));
             }
         }
     }

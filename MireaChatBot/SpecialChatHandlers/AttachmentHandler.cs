@@ -142,7 +142,7 @@ namespace MireaChatBot.ChatHandlers
             .FirstOrDefault();
         public abstract AttachmentHandlerState NextState(Message message);
         public abstract void OnGotControl();
-        public bool checkOnExitRequest(string messageText)
+        public bool CheckOnExitRequest(string messageText)
         {
             Regex exitRegex = new Regex(@"/выход");
             return exitRegex.IsMatch(messageText);
@@ -150,6 +150,12 @@ namespace MireaChatBot.ChatHandlers
         public IEnumerable<Activity> GetDayActivities(DateTime date)
         {
             return groupSchedule.GetDayEducationalActivities(date);
+        }
+
+        public AttachmentHandlerState SkipState(AttachmentHandlerState state, Message message)
+        {
+            if (state is null) return null;
+            return state.NextState(message);
         }
     }
 
@@ -161,7 +167,7 @@ namespace MireaChatBot.ChatHandlers
 
         public override void OnGotControl()
         {
-            GroupContext.SendSupervisorCommands();
+            
         }
 
         public override AttachmentHandlerState NextState(Message message)
@@ -177,7 +183,7 @@ namespace MireaChatBot.ChatHandlers
                 case "приложить":
                     return new WaitDateState(Handler);
                 case "удалить":
-                    return this;
+                    return new WaitDateRemoveState(Handler);
                 default:
                     return this;
             }
@@ -197,7 +203,7 @@ namespace MireaChatBot.ChatHandlers
         public override AttachmentHandlerState NextState(Message message)
         {
             string messageText = message.Text;
-            if (checkOnExitRequest(messageText)) return new DefaultState(Handler);
+            if (CheckOnExitRequest(messageText)) return new DefaultState(Handler);
             Match dateMatch = _dateRegex.Match(messageText);
             if (!dateMatch.Success)
             {
@@ -208,6 +214,7 @@ namespace MireaChatBot.ChatHandlers
             return new WaitActivityState(Handler);
         }
     }
+
     public sealed class WaitActivityState : AttachmentHandlerState
     {
         private IEnumerable<Activity> _requestedDateActivities;
@@ -221,7 +228,7 @@ namespace MireaChatBot.ChatHandlers
         public override AttachmentHandlerState NextState(Message message)
         {
             string messageText = message.Text;
-            if (checkOnExitRequest(messageText)) return new DefaultState(Handler);
+            if (CheckOnExitRequest(messageText)) return new DefaultState(Handler);
             var selectedActivity = _requestedDateActivities.Where(a => messageText == $"[{a.StartTime.ToString("HH:mm")}] {a.Name}").FirstOrDefault();
             if(selectedActivity is null)
             {
@@ -244,7 +251,7 @@ namespace MireaChatBot.ChatHandlers
         public override AttachmentHandlerState NextState(Message message)
         {
             string messageText = message.Text;
-            if (checkOnExitRequest(messageText)) return new DefaultState(Handler);
+            if (CheckOnExitRequest(messageText)) return new DefaultState(Handler);
             Handler.CurrentData.Comment = messageText;
             return new WaitAttachmentState(Handler);
         }
@@ -261,11 +268,15 @@ namespace MireaChatBot.ChatHandlers
         public override AttachmentHandlerState NextState(Message message)
         {
             string messageText = message.Text;
-            if(checkOnExitRequest(messageText)) return new DefaultState(Handler);
-            if (noAttachmentReplyMarkup.Contains(messageText)) return new SaveAttachmentState(Handler);
-            if (message.Document is null) return this;
+            if(CheckOnExitRequest(messageText)) return new DefaultState(Handler);
+            if (noAttachmentReplyMarkup.Contains(messageText)) return SkipState(new SaveAttachmentState(Handler), message);
+            if (message.Document is null)
+            {
+                SupervisorChat.SendMessage(new SendMessageArgs("В качестве приложения можно добавить только файл", ReplyMarkup.Create(noAttachmentReplyMarkup)));
+                return this;
+            }
             Handler.CurrentData.AttachmentFile = SupervisorChat.GetFile(message.Document);
-            return new SaveAttachmentState(Handler);
+            return SkipState(new SaveAttachmentState(Handler), message);
         }
     }
 
@@ -292,6 +303,7 @@ namespace MireaChatBot.ChatHandlers
         public Activity RequestedActivity { get; set; }
         public string Comment { get; set; }
         public FileInfo AttachmentFile { get; set; }
+        public AttachmentRecord RecordToRemove { get; set; }
     }
 
     public class AttachmentRecord
@@ -307,5 +319,78 @@ namespace MireaChatBot.ChatHandlers
         public Activity Activity { get; }
         public FileInfo AttachmentInfo { get; }
         public string Comment { get; }
+    }
+
+    public sealed class WaitDateRemoveState : AttachmentHandlerState
+    {
+        private readonly Regex _dateRegex = new Regex(@"(?<day>\d\d)\.(?<month>\d\d)(\.?)(?<year>(\d\d\d\d)?)");
+
+        public WaitDateRemoveState(AttachmentHandler handler) : base(handler) { }
+
+        public override AttachmentHandlerState NextState(Message message)
+        {
+            if (string.IsNullOrEmpty(message.Text)) return this;
+            string messageText = message.Text;
+            if (CheckOnExitRequest(messageText)) return new DefaultState(Handler);
+            Match match = _dateRegex.Match(messageText);
+            if(!match.Success)
+            {
+                SupervisorChat.SendMessage(new SendMessageArgs("Некорректная дата"));
+                return this;
+            }
+            Handler.CurrentData.RequestedDate = DateTime.Parse(match.Value);
+            return new WaitActivityRemoveState(Handler);
+        }
+
+        public override void OnGotControl()
+        {
+            SupervisorChat.SendMessage(new SendMessageArgs("Укажите дату"));
+        }
+    }
+
+    public sealed class WaitActivityRemoveState : AttachmentHandlerState
+    {
+        IEnumerable<AttachmentRecord> _requestedActivities;
+
+        public WaitActivityRemoveState(AttachmentHandler handler) : base(handler) { }
+
+        IEnumerable<string> _requestedActivityTitles => _requestedActivities.Select<AttachmentRecord, string>(r => $"[{r.Activity.StartTime.ToString("HH:mm")}] {r.Activity.Name}\n{r.Comment ?? "Без комментария"}");
+        public override AttachmentHandlerState NextState(Message message)
+        {
+            if (string.IsNullOrEmpty(message.Text)) return this;
+            string messageText = message.Text;
+            if (CheckOnExitRequest(messageText)) return new DefaultState(Handler);
+            AttachmentRecord record = _requestedActivities.Where(r => messageText == $"[{r.Activity.StartTime.ToString("HH:mm")}] {r.Activity.Name}\n{r.Comment ?? "Без комментария"}").FirstOrDefault();
+            if(record is null)
+            {
+                SupervisorChat.SendMessage(new SendMessageArgs("Примечание не найдено", ReplyMarkup.Create(_requestedActivityTitles)));
+                return this;
+            }
+            Handler.CurrentData.RecordToRemove = record;
+            return SkipState(new RemoveState(Handler), message);
+        }
+
+        public override void OnGotControl()
+        {
+            _requestedActivities = Handler.Records.Where(r => r.Date.ToString("yyyy.MM.dd") == Handler.CurrentData.RequestedDate.ToString("yyyy.MM.dd"));
+            SupervisorChat.SendMessage(new SendMessageArgs("Выберите примечание для удаления", ReplyMarkup.Create(_requestedActivityTitles)));
+        }
+    }
+
+    public sealed class RemoveState : AttachmentHandlerState
+    {
+        public RemoveState(AttachmentHandler handler) : base(handler) { }
+
+        public override AttachmentHandlerState NextState(Message message)
+        {
+            return new DefaultState(Handler);
+        }
+
+        public override void OnGotControl()
+        {
+            if (Handler.CurrentData.RecordToRemove is null) return;
+            Handler.Records.Remove(Handler.CurrentData.RecordToRemove);
+            SupervisorChat.SendMessage(new SendMessageArgs("Удалено"));
+        }
     }
 }

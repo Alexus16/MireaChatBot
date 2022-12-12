@@ -121,9 +121,9 @@
     <Compile Include="BotHandlers\MireaGroupRegistrator.cs" />
     <Compile Include="Bot\BotClient.cs" />
     <Compile Include="Bot\TelegramClient.cs" />
-    <Compile Include="ChatHandlers\AttachmentHandler.cs" />
-    <Compile Include="ChatHandlers\ChatHandler.cs" />
-    <Compile Include="ChatHandlers\PollVisitorsHandler.cs" />
+    <Compile Include="SpecialChatHandlers\AttachmentHandler.cs" />
+    <Compile Include="SpecialChatHandlers\SpecialChatHandler.cs" />
+    <Compile Include="SpecialChatHandlers\PollVisitorsHandler.cs" />
     <Compile Include="DataContainers\CustomUserDataContainer.cs" />
     <Compile Include="DataContainers\DataContainer.cs" />
     <Compile Include="DataContainers\KeyTimeDataContainer.cs" />
@@ -133,9 +133,10 @@
     <Compile Include="Lesson.cs" />
     <Compile Include="Misc\HTML.cs" />
     <Compile Include="Misc\HTTP.cs" />
-    <None Include="Postgres\PostgresClient.cs" />
     <Compile Include="ChatRegistration\ChatClientProvider.cs" />
     <Compile Include="ChatRegistration\ChatProviderRegistrator.cs" />
+    <Compile Include="Repositories\Repository.cs" />
+    <Compile Include="RepositoryDataBuilders\GroupBuilderRepositoryBuilder.cs" />
     <Compile Include="UniversityGroup.cs" />
     <Compile Include="Schedule.cs" />
     <Compile Include="ScheduleAccessors\Accessors.cs" />

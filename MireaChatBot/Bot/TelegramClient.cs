@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.BotAPI;
@@ -158,7 +159,10 @@ namespace MireaChatBot.Bot
 
         public Message SendMessage(SendFileArgs args)
         {
-            if (args.File == "") SendMessage(args as SendMessageArgs);
+            if (args.File == "")
+            {
+                return SendMessage(args as SendMessageArgs);
+            }
             byte[] buffer = System.IO.File.ReadAllBytes(args.File);
             string fileName = Path.GetFileName(args.File);
             var tgArgs = new SendDocumentArgs(_chatId, new InputFile(buffer, fileName));

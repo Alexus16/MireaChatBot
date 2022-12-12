@@ -75,6 +75,7 @@ namespace MireaChatBot.DataContainers
 
         public void SetBuilder(IGroupContainerBuilder builder)
         {
+            
             _builder = builder;
             subscribeOnBotClient();
         }

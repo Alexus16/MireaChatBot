@@ -1,5 +1,4 @@
-﻿using DocumentFormat.OpenXml.EMMA;
-using MireaChatBot.BotHandlers;
+﻿using MireaChatBot.BotHandlers;
 using MireaChatBot.ChatHandlers;
 using MireaChatBot.ChatRegistation;
 using MireaChatBot.DataContainers;
@@ -18,11 +17,9 @@ namespace MireaChatBot.GroupContainers
     }
     public interface IGroupContext
     {
-        event EventHandler SendSupervisorDefaultCommandsRequested;
         ChatClientProvider Provider { get; }
         T GetDataContainer<T>() where T : class, IDataContainer;
         void AddDataContainer<T>(T container) where T : class, IDataContainer;
-        void SendSupervisorCommands();
     }
     public interface IGroupContainerBuilder
     {
@@ -71,13 +68,10 @@ namespace MireaChatBot.GroupContainers
     {
         private GroupContext _context;
         private List<ISpecialChatHandler> _chatHandlers;
-        private List<CustomUserDataContainer> _chatVisitorDataContainers;
         public GroupContainer(GroupContext context)
         {
-            _chatHandlers = new List<ISpecialChatHandler>();
-            _chatVisitorDataContainers = new List<CustomUserDataContainer>();
             _context = context;
-            subscribeOnContextEvents();
+            _chatHandlers = new List<ISpecialChatHandler>();
         }
 
         public IGroupContext Context => _context;
@@ -90,19 +84,6 @@ namespace MireaChatBot.GroupContainers
         public void AddHandler<T>(T handler) where T : class, ISpecialChatHandler
         {
             _chatHandlers.Add(handler);
-        }
-
-        private void subscribeOnContextEvents()
-        {
-            _context.SendSupervisorDefaultCommandsRequested += sendSupervisorCommands;
-        }
-        private void unsubscribeFromContextEvents()
-        {
-            _context.SendSupervisorDefaultCommandsRequested -= sendSupervisorCommands;
-        }
-        private void sendSupervisorCommands(object sender, EventArgs args)
-        {
-            
         }
     }
 
@@ -129,11 +110,14 @@ namespace MireaChatBot.GroupContainers
         public IBotClient Client => _client;
 
         public IEnumerable<IGroupContainer> Groups => _containers;
+        public IEnumerable<IDataContainer> DataContainers => _dataContainers;
+        public IEnumerable<ICommonChatHandler> Handlers => _botHandlers;
+        public IEnumerable<ISpecialChatHandlerFactory> HandlerFactories => _handlerFactories;
 
         public IChatClient AdminChat => _registrator.AdminClient;
         public T GetDataContainer<T>() where T : class, IDataContainer
         {
-            return _containers.Where(c => c is T).FirstOrDefault() as T;
+            return _dataContainers.Where(c => c is T).FirstOrDefault() as T;
         }
 
         public IGroupContainer GetGroup(Group groupInfo)
